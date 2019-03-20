@@ -6,8 +6,23 @@ module.exports = {
     mode: 'development',
 
     ...baseConfig,
-
-    module: {},
+    resolveLoader: {
+        modules: ['node_modules', path.resolve(__dirname, '../src/loaders')],
+    },
+    module: {
+        rules: [
+            { 
+                test: /\.js$/, 
+                use: {
+                    loader: 'sign-loader',
+                    options: {
+                        author: '兴爷'
+                    }
+                },
+                include: [path.resolve(__dirname, '../src')], 
+            }
+        ]
+    },
 
     plugins: [
         new HtmlWebpackPlugin({
