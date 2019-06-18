@@ -1,0 +1,30 @@
+{
+  "extends": ["kaola/esnext", "prettier"],
+  "rules": {
+      "camelcase": "warn",
+      "new-cap": "warn",
+      "guard-for-in": "warn",
+      "object-shorthand": "warn",
+      "no-unused-vars": "warn",
+      "no-use-before-define": "warn",
+      "no-implicit-coercion": ["warn", {
+          "allow": ["!!", "~"]
+      }],
+      "prettier/prettier": ["error", {
+          "singleQuote": true,
+          "bracketSpacing": true,
+          "tabWidth": 4,
+          "useTabs": false
+      }]
+  },
+  "parserOptions": {
+      "ecmaVersion": 6,
+      "ecmaFeatures": {
+          "experimentalObjectRestSpread": true
+      },
+      "parser": "babel-eslint"
+  },
+  "plugins": [
+      "prettier"
+  ]
+}

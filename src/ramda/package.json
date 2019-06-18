@@ -16,5 +16,8 @@
     "lodash": "^4.17.11",
     "mocha": "^6.0.2",
     "ramda": "^0.26.1"
+  },
+  "dependencies": {
+    "promises-aplus-tests": "^2.1.2"
   }
 }

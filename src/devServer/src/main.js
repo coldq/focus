@@ -10362,4 +10362,3 @@ if ( !noGlobal ) {
 
 return jQuery;
 } );
-export const plus = (a, b) => a + b
