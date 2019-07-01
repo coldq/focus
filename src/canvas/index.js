@@ -1,4 +1,4 @@
-const { createCanvas, loadImage } = require('canvas');
+const { createCanvas, loadImage, Image } = require('canvas');
 const QRCode = require('qrcode');
 
 function type(any) {
@@ -6,10 +6,6 @@ function type(any) {
     return typeStr.match(/^\[object (\S+)\]$/)[1];
 }
 
-// QRCode.toCanvas(canvas, 'https://m.kaola.com').then(() => {
-//     dataUrl = canvas.toDataURL()
-//     console.log(dataUrl)
-// })
 /**
  * @param { Object } options setting
  * @param { Number } options.width   width
@@ -19,7 +15,7 @@ function type(any) {
  */
 class Painter {
     constructor(options) {
-        const { width, height, actions = [] } = options;
+        const { width, height, actions = [], background } = options;
         this.validate(options);
         this.options = options;
 
@@ -27,7 +23,17 @@ class Painter {
         this.canvas = canvas;
         this.ctx = canvas.getContext('2d');
         this.exector = Promise.resolve();
-
+        if (background) {
+            actions.unshift({
+                type: 'fill',
+                x: 0,
+                y: 0,
+                w: width,
+                h: height,
+                background,
+                index: -1
+            });
+        }
         this.startPaint(actions);
     }
     validate(options) {
@@ -42,7 +48,7 @@ class Painter {
             throw new TypeError('height is not a number!');
         }
         if (type(actions) !== 'Array') {
-            throw new TypeError('height is not a Array!');
+            throw new TypeError('actions is not a Array!');
         }
         if (!actions.length) {
             throw new Error('No action to draw.');
@@ -63,8 +69,6 @@ class Painter {
                 indexAry.push(action.index);
             }
         });
-
-        console.assert(indexAry.length > 0);
 
         if (indexAry.length > 1) {
             indexAry.sort((a, b) => a - b);
@@ -98,7 +102,7 @@ class Painter {
         } else if (action.type === 'qrcode') {
             return this._drawQrcode(action);
         }
-        return Promise.reject(`invalid type '${action.type}'`);
+        return Promise.reject(`Invalid type '${action.type}'`);
     }
     /**
      * @param {String} action.type text fill line
@@ -111,7 +115,7 @@ class Painter {
         } else if (action.type === 'line') {
             return this._line(action);
         }
-        return Promise.reject(`invalid type '${action.type}'`);
+        return Promise.reject(`Invalid type '${action.type}'`);
     }
     _drawImage(image) {
         return loadImage(image.url).then(img => {
@@ -133,6 +137,55 @@ class Painter {
             } else {
                 ctx.drawImage(img, x, y, w, h);
             }
+        });
+    }
+    /**
+     * @param { String } errorCorrectionLevel L M Q H
+     * @param { Number } margin Default: 4. Define how much wide the quiet zone should be.
+     * @param { Number } scale Default: 4. Scale factor. A value of 1 means 1px per modules (black dots).
+     * @param { Number } width Forces a specific width for the output image.
+     * If width is too small to contain the qr symbol, this option will be ignored.
+     * Takes precedence over scale.
+     * @param { String } color.dark Default: #000000ff. Color of dark module. Value must be in hex format (RGBA).
+     * @param { String } color.light Default: #ffffffff. Color of light module. Value must be in hex format (RGBA).
+     */
+    _drawQrcode(action) {
+        const ctx = this.ctx;
+        const {
+            text,
+            errorCorrectionLevel = 'M',
+            x = 0,
+            y = 0,
+            w,
+            h,
+            scale = 4,
+            margin = 1,
+            color
+        } = action;
+        if (!text || !w || !h) return Promise.resolve();
+        const config = {
+            errorCorrectionLevel,
+            width: w,
+            scale,
+            margin
+        };
+        if (color) config.color = color;
+        return new Promise((res, rej) => {
+            QRCode.toDataURL(text, config, function(err, url) {
+                if (err) return rej(err);
+                return res(url);
+            });
+        }).then(url => {
+            const img = new Image();
+            return new Promise((resolve, reject) => {
+                img.onload = () => {
+                    resolve(ctx.drawImage(img, x, y, w, h));
+                };
+                img.onerror = err => {
+                    reject(err);
+                };
+                img.src = url;
+            });
         });
     }
     _line(line) {
@@ -164,43 +217,18 @@ class Painter {
         }
         ctx.restore(); //恢复之前保存的绘图上下文
     }
+    // TODO draw text
+    // text = '',
+    // textAlign = 'center', // left right center
+    // verticalAlign = 'middle',
+    // color,
+    // fontSize = 22,
+    // lineHeight = 1.3,
+    // needLine
     _fill(fill) {
-        const {
-            x,
-            y,
-            w,
-            h,
-            background,
-            radius,
-            stroke,
-            text = '',
-            textAlign = 'center', // left right center
-            verticalAlign = 'middle',
-            color,
-            fontSize = 22,
-            lineHeight = 1.3,
-            needLine
-        } = fill;
+        const { x, y, w, h, background, radius, stroke } = fill;
         const ctx = this.ctx;
         this._roundRect(ctx, x, y, w, h, radius, background, stroke);
-        if (text) {
-            let startX, startY;
-            // textAlign verticalAlign , 还有多行判断
-            if (textAlign === 'center') {
-                startX = 
-            } else if (textAlign === 'left') {
-
-            } else if (textAlign === 'right') {
-
-            }
-            this._text({
-                text,
-                color,
-                needLine,
-                textX,
-                textY
-            });
-        }
     }
     /**
      * 画弧形
@@ -208,17 +236,59 @@ class Painter {
      * @param { Number } y
      * @param { Number } width
      * @param { Number } height
-     * @param { Number } radius  10
-     * @param { Object } radius  {tl:10, tr:0, br:10, bl: 5}
-     * @param  { Boolean } background  是否填充颜色,颜色在外部控制
-     * @param { Boolean } strokeColor 是否画线
+     * @param { String } radius  '0' '10 10' '10 10 20 20'
+     * @param  { Color } background  填充颜色,颜色在外部控制
+     * @param { Color } strokeColor 线条画线
      */
-    _roundRect(ctx, x, y, width, height, radius = 0, background, strokeColor) {
+    _roundRect(
+        ctx,
+        x,
+        y,
+        width,
+        height,
+        radius = '0',
+        background,
+        strokeColor
+    ) {
         ctx.save(); //保存当前的绘图上下文。
-        if (typeof radius === 'number') {
+        if (typeof radius === 'string') {
+            let radiusAry = radius.split(' ').map(Number);
+            if (radiusAry.length === 0) {
+                radius = { tl: 0, tr: 0, br: 0, bl: 0 };
+            } else if (radiusAry.length === 1) {
+                radius = {
+                    tl: radiusAry[0],
+                    tr: radiusAry[0],
+                    br: radiusAry[0],
+                    bl: radiusAry[0]
+                };
+            } else if (radiusAry.length === 2) {
+                radius = {
+                    tl: radiusAry[0],
+                    tr: radiusAry[1],
+                    br: radiusAry[0],
+                    bl: radiusAry[1]
+                };
+            } else if (radiusAry.length === 3) {
+                radius = {
+                    tl: radiusAry[0],
+                    tr: radiusAry[1],
+                    br: radiusAry[2],
+                    bl: radiusAry[1]
+                };
+            } else {
+                radius = {
+                    tl: radiusAry[0],
+                    tr: radiusAry[1],
+                    br: radiusAry[2],
+                    bl: radiusAry[3]
+                };
+            }
+        } else if (typeof radius === 'number') {
             radius = { tl: radius, tr: radius, br: radius, bl: radius };
         } else {
             let defaultRadius = { tl: 0, tr: 0, br: 0, bl: 0 };
+            // eslint-disable-next-line guard-for-in
             for (let side in defaultRadius) {
                 radius[side] = radius[side] || defaultRadius[side];
             }
@@ -368,14 +438,28 @@ class Painter {
         ctx.fillStyle = linear;
     }
     /**
-     * @param { Object } output.type DataURL/png DataURL/jpg buffer file
+     * @param { Object } output.type DataURL/png DataURL/jpeg Buffer/png Buffer/jpeg Stream/png Stream/jpeg
+     * @param { Object } output.config DataURL/png DataURL/jpeg { quality: 0.75 }
+     * @param { Object } output.config Stream/png {compressionLevel: 6, filters: canvas.PNG_ALL_FILTERS, palette: undefined, backgroundIndex: 0, resolution: undefined}
+     * @param { Object } output.config Stream/jpeg {quality: 0.75, progressive: false, chromaSubsampling: true}
      */
     getImage() {
-        const { output = { type: 'DataURL/png' } } = this.options;
+        const { output = { type: 'DataURL/png' }, config = {} } = this.options;
         return this.exector.then(() => {
             if (output.type === 'DataURL/png') {
-                return this.canvas.toDataURL('image/png');
+                return this.canvas.toDataURL('image/png', config.quality || 1);
+            } else if (output.type === 'DataURL/jpeg') {
+                return this.canvas.toDataURL('image/jpeg', config.quality || 1);
+            } else if (output.type === 'Buffer/png') {
+                return this.canvas.toBuffer('image/png', config);
+            } else if (output.type === 'Buffer/jpeg') {
+                return this.canvas.toBuffer('image/jpeg', config);
+            } else if (output.type === 'Stream/jpeg') {
+                return this.canvas.createJPEGStream(config);
+            } else if (output.type === 'Stream/png') {
+                return this.canvas.createPNGStream(config);
             }
+            throw new Error('Not match output setting. Please check!');
         });
     }
 }
