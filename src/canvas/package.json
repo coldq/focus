@@ -1,6 +1,6 @@
 {
   "name": "canvas-share",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "canvas draw pic",
   "main": "index.js",
   "scripts": {
@@ -15,5 +15,6 @@
   "devDependencies": {
     "assert": "^2.0.0",
     "mocha": "^6.1.4"
-  }
+  },
+  "keywords": ["canvas"]
 }
