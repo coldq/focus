@@ -181,4 +181,4 @@ let p = paint({
 
 ## Result pic:
 
-![share.png](./test/test.png)
+![share.png](https://haitao.nos.netease.com/07799670-417f-4308-a697-cc288d5e036a_750_1152.png)
