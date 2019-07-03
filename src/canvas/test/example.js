@@ -1,4 +1,4 @@
-const paint = require('./index');
+const paint = require('../index');
 
 paint({
     width: 500,
@@ -30,19 +30,61 @@ paint({
         {
             type: 'fill',
             x: 100,
-            y: 200,
+            y: 230,
             w: 100,
             h: 100,
             background: 'linear-gradient(135deg , red, yellow )',
-            radius: '10 20 20 10'
+            radius: '10 20 20 10',
+            text: '测试哦',
+            verticalAlign: 'top',
+            color: 'yellow'
         },
         {
             type: 'fill',
             x: 300,
-            y: 200,
+            y: 230,
             w: 100,
             h: 100,
-            background: 'red'
+            background: 'red',
+            text: '测试哦',
+            verticalAlign: 'bottom'
+        },
+        {
+            type: 'fill',
+            x: 100,
+            y: 120,
+            w: 100,
+            h: 100,
+            background: 'red',
+            text: '测试哦',
+            verticalAlign: 'middle',
+            textAlign: 'left'
+        },
+        {
+            type: 'fill',
+            x: 300,
+            y: 120,
+            w: 100,
+            h: 100,
+            background: 'red',
+            text: '测试哦',
+            verticalAlign: 'bottom',
+            textAlign: 'right'
+        },
+        {
+            type: 'fill',
+            x: 300,
+            y: 0,
+            w: 100,
+            h: 100,
+            background: 'red',
+            text: '测试哦多行ad问问大订单add大订单'
+        },
+        {
+            type: 'line',
+            width: 1,
+            color: 'blue',
+            points: ['0 548', '500 548']
         },
         {
             type: 'qrcode',
@@ -51,7 +93,7 @@ paint({
             w: 200,
             h: 200,
             x: 150,
-            y: 320,
+            y: 340,
             color: {
                 dark: '#15a8ebff'
             },

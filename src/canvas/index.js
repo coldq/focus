@@ -98,26 +98,30 @@ class Painter {
      */
     execAsyncAction(action) {
         if (action.type === 'image') {
-            return this._drawImage(action);
+            return this.drawImage(action);
         } else if (action.type === 'qrcode') {
-            return this._drawQrcode(action);
+            return this.drawQrcode(action);
         }
-        return Promise.reject(`Invalid type '${action.type}'`);
+        throw new Error(
+            `Invalid type '${action.type}', action is ${JSON.stringify(action)}`
+        );
     }
     /**
      * @param {String} action.type text fill line
      */
     execSyncAction(action) {
         if (action.type === 'text') {
-            return this._text(action);
+            return this.text(action);
         } else if (action.type === 'fill') {
-            return this._fill(action);
+            return this.fill(action);
         } else if (action.type === 'line') {
-            return this._line(action);
+            return this.line(action);
         }
-        return Promise.reject(`Invalid type '${action.type}'`);
+        throw new Error(
+            `Invalid type '${action.type}', action is ${JSON.stringify(action)}`
+        );
     }
-    _drawImage(image) {
+    drawImage(image) {
         return loadImage(image.url).then(img => {
             const { x, y, w, h, clipSize } = image;
             const { ctx } = this;
@@ -149,7 +153,7 @@ class Painter {
      * @param { String } color.dark Default: #000000ff. Color of dark module. Value must be in hex format (RGBA).
      * @param { String } color.light Default: #ffffffff. Color of light module. Value must be in hex format (RGBA).
      */
-    _drawQrcode(action) {
+    drawQrcode(action) {
         const ctx = this.ctx;
         const {
             text,
@@ -188,7 +192,7 @@ class Painter {
             });
         });
     }
-    _line(line) {
+    line(line) {
         const { points, width, color, fillColor } = line;
         const ctx = this.ctx;
         ctx.save(); //保存当前的绘图上下文。
@@ -217,18 +221,93 @@ class Painter {
         }
         ctx.restore(); //恢复之前保存的绘图上下文
     }
-    // TODO draw text
-    // text = '',
-    // textAlign = 'center', // left right center
-    // verticalAlign = 'middle',
-    // color,
-    // fontSize = 22,
-    // lineHeight = 1.3,
-    // needLine
-    _fill(fill) {
-        const { x, y, w, h, background, radius, stroke } = fill;
+    // eslint-disable-next-line complexity
+    fill(action) {
         const ctx = this.ctx;
-        this._roundRect(ctx, x, y, w, h, radius, background, stroke);
+        let { lineHeight = 1.3, w, h } = action;
+        const {
+            x,
+            y,
+            text = '',
+            textAlign = 'center', // left right center
+            verticalAlign = 'middle', // top middle bottom
+            color,
+            fontFamily = 'sans-serif',
+            fontSize = 22,
+            needLine,
+            isBold,
+            background,
+            radius,
+            borderColor
+        } = action;
+        if (fontSize) {
+            ctx.font = `${fontSize}px ${fontFamily}`;
+        }
+        if (lineHeight < 1) lineHeight = 1;
+        const textWidth = ctx.measureText(text).width;
+        if (text && !w) {
+            w = textWidth;
+        }
+        const computeH = Math.ceil(textWidth / w) * fontSize * lineHeight;
+        if (text && w && (computeH > h || !h)) {
+            h = computeH;
+        }
+        console.log(textWidth, computeH, w,h);
+        this.roundRect(ctx, x, y, w, h, radius, background, borderColor);
+        if (text) {
+            let wordHeader = 0,
+                wordTail = Math.min(text.length, Math.floor(w / fontSize)),
+                lineNum = h / fontSize / lineHeight;
+            let currentY,
+                currentX = x;
+            if (verticalAlign === 'top') {
+                currentY = y + ((lineHeight + 0.8) / 2) * fontSize;
+            } else if (verticalAlign === 'bottom') {
+                currentY =
+                    y + (h - computeH) + ((lineHeight + 0.8) / 2) * fontSize;
+            } else {
+                currentY =
+                    y +
+                    (h - computeH) / 2 +
+                    ((lineHeight + 0.8) / 2) * fontSize;
+            }
+            for (let i = 0; i < lineNum && wordHeader <= text.length; i++) {
+                // 寻找一行能容纳最大字数的位置
+                while (wordTail <= text.length) {
+                    let subStrMin = text.slice(wordHeader, wordTail),
+                        subStrMax = text.slice(wordHeader, wordTail + 1);
+                    let widthMix = ctx.measureText(subStrMin).width,
+                        widthMax = ctx.measureText(subStrMax).width;
+                    if (widthMix <= w && widthMax >= w) {
+                        break;
+                    } else if (widthMix > w) {
+                        wordTail--;
+                    } else {
+                        wordTail++;
+                    }
+                }
+                const finalStr = text.slice(wordHeader, wordTail);
+                const strW = ctx.measureText(finalStr).width;
+                if (textAlign === 'right') {
+                    currentX = x + w - strW;
+                } else if (textAlign === 'center') {
+                    currentX = x + (w - strW) / 2;
+                }
+                this.text({
+                    x: currentX,
+                    y: currentY,
+                    isBold,
+                    needLine,
+                    color,
+                    fontSize: null,
+                    text: finalStr
+                });
+                currentY += fontSize * lineHeight;
+                const tmp = wordTail - wordHeader;
+                wordHeader = wordTail;
+                wordTail = wordTail + tmp;
+            }
+        }
     }
     /**
      * 画弧形
@@ -240,19 +319,13 @@ class Painter {
      * @param  { Color } background  填充颜色,颜色在外部控制
      * @param { Color } strokeColor 线条画线
      */
-    _roundRect(
-        ctx,
-        x,
-        y,
-        width,
-        height,
-        radius = '0',
-        background,
-        strokeColor
-    ) {
+    roundRect(ctx, x, y, width, height, radius = '0', background, strokeColor) {
         ctx.save(); //保存当前的绘图上下文。
-        if (typeof radius === 'string') {
-            let radiusAry = radius.split(' ').map(Number);
+        if (type(radius) === 'String') {
+            let radiusAry = radius
+                .trim()
+                .split(' ')
+                .map(Number);
             if (radiusAry.length === 0) {
                 radius = { tl: 0, tr: 0, br: 0, bl: 0 };
             } else if (radiusAry.length === 1) {
@@ -284,7 +357,7 @@ class Painter {
                     bl: radiusAry[3]
                 };
             }
-        } else if (typeof radius === 'number') {
+        } else if (type(radius) === 'Number') {
             radius = { tl: radius, tr: radius, br: radius, bl: radius };
         } else {
             let defaultRadius = { tl: 0, tr: 0, br: 0, bl: 0 };
@@ -294,32 +367,42 @@ class Painter {
             }
         }
         ctx.beginPath();
-        ctx.moveTo(x + radius.tl, y);
-        ctx.lineTo(x + width - radius.tr, y);
-        ctx.quadraticCurveTo(x + width, y, x + width, y + radius.tr);
-        ctx.lineTo(x + width, y + height - radius.br);
+        ctx.moveTo(x + Math.min(radius.tl, width / 2), y);
+        ctx.lineTo(x + width - Math.min(radius.tr, width / 2), y);
+        ctx.quadraticCurveTo(
+            x + width,
+            y,
+            x + width,
+            y + Math.min(radius.tr, height / 2)
+        );
+        ctx.lineTo(x + width, y + height - Math.min(radius.br, height / 2));
         ctx.quadraticCurveTo(
             x + width,
             y + height,
-            x + width - radius.br,
+            x + width - Math.min(radius.br, width / 2),
             y + height
         );
-        ctx.lineTo(x + radius.bl, y + height);
-        ctx.quadraticCurveTo(x, y + height, x, y + height - radius.bl);
-        ctx.lineTo(x, y + radius.tl);
-        ctx.quadraticCurveTo(x, y, x + radius.tl, y);
+        ctx.lineTo(x + Math.min(radius.bl, width / 2), y + height);
+        ctx.quadraticCurveTo(
+            x,
+            y + height,
+            x,
+            y + height - Math.min(radius.bl, height / 2)
+        );
+        ctx.lineTo(x, y + Math.min(radius.tl, height / 2));
+        ctx.quadraticCurveTo(x, y, x + Math.min(radius.tl, width / 2), y);
         ctx.closePath();
         if (background) {
-            this._setColor(background, x, y, width, height);
+            this.setColor(background, x, y, width, height, 'fillStyle');
             ctx.fill();
         }
         if (strokeColor) {
-            this._setColor(strokeColor, x, y, width, height);
+            this.setColor(strokeColor, x, y, width, height, 'strokeStyle');
             ctx.stroke();
         }
         ctx.restore(); //恢复之前保存的绘图上下文
     }
-    _text(options) {
+    text(options) {
         let {
             x = 0,
             y = 0,
@@ -333,7 +416,9 @@ class Painter {
         if (text == null) return;
         const ctx = this.ctx;
         ctx.save();
-        ctx.font = `${fontSize}px ${fontFamily}`;
+        if (fontSize && type(fontSize) === 'Number') {
+            ctx.font = `${fontSize}px ${fontFamily}`;
+        }
         if (isBold) {
             ctx.font = `normal bold ${fontSize}px ${fontFamily}`;
         }
@@ -349,8 +434,7 @@ class Painter {
             ctx.stroke();
             ctx.restore();
         }
-        // ctx.fillStyle = color;
-        this._setColor(
+        this.setColor(
             color,
             x,
             y - fontSize,
@@ -360,16 +444,15 @@ class Painter {
         ctx.fillText(options.text, x, y);
         ctx.restore();
     }
-    //
-    _setColor(color, x, y, w, h) {
+    setColor(color, x, y, w, h, type = 'fillStyle') {
         const ctx = this.ctx;
         if (/linear-gradient/.test(color)) {
-            this.setGradient(color, x, y, w, h);
+            this.setGradient(color, x, y, w, h, type);
         } else {
-            ctx.fillStyle = color;
+            ctx[type] = color;
         }
     }
-    setGradient(color, x, y, w, h) {
+    setGradient(color, x, y, w, h, type) {
         const optStr = color.match(/linear-gradient\((.+)\)/)[1];
         const optAry = optStr.split(',').map(e => e.trim());
         if (!optAry || !optAry.length || optAry.length < 2) {
@@ -435,7 +518,7 @@ class Painter {
         let linear = ctx.createLinearGradient(...direction);
         linear.addColorStop(0, beginColor);
         linear.addColorStop(1, endColor);
-        ctx.fillStyle = linear;
+        ctx[type] = linear;
     }
     /**
      * @param { Object } output.type DataURL/png DataURL/jpeg Buffer/png Buffer/jpeg Stream/png Stream/jpeg

@@ -1,5 +1,3 @@
-## example
-```js
 const paint = require('../index');
 const fs = require('fs')
 const out = fs.createWriteStream('./test.png')
@@ -177,8 +175,3 @@ let p = paint({
         out.on('finish', () => console.log('The PNG file was created.'));
     })
     .catch(console.error);
-```
-
-## Result pic:
-
-![share.png](./test/test.png)
