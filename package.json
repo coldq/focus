@@ -17,6 +17,6 @@
     "prettier": "^1.5.2"
   },
   "dependencies": {
-    "@kaola-mkt/mph5-helper": "0.0.38"
+    "@kaola-mkt/mph5-helper": "0.1.18"
   }
 }
